@@ -1,18 +1,20 @@
-trigger: 
-  branches:
-    include:
-    - main
-    - feature/*
-  paths:
-   include:
-     - environment/dev
-   
+trigger: none
+
 pool: raka
 
+parameters:
+- name: envi
+  displayName: environment
+  type: string
+  values: 
+  - dev
+  - prod
+
 variables:
-  WORK_DIR: '$(System.DefaultWorkingDirectory)/environment/dev'
+  WORK_DIR: '$(System.DefaultWorkingDirectory)/environment/${{ parameters.envi }}'
   SERVICE_CONNECTION: 'Rake-Pipeline-01'
   STORAGE_ACCOUNT: 'devstorage13'
+  BACKEND_KEY: 'dev.terraform.tfstate'
 
 stages: 
 - stage: PreCommit
