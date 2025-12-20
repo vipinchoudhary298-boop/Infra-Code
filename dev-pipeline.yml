@@ -11,10 +11,16 @@ parameters:
   - prod
 
 variables:
-  WORK_DIR: '$(System.DefaultWorkingDirectory)/environment/${{ parameters.envi }}'
-  SERVICE_CONNECTION: 'Rake-Pipeline-01'
-  STORAGE_ACCOUNT: 'devstorage13'
-  BACKEND_KEY: 'dev.terraform.tfstate'
+- group: 'InfracostAPI'
+- name: 'WORK_DIR'
+  value: '$(System.DefaultWorkingDirectory)/environment/${{ parameters.envi }}'
+- name: 'SERVICE_CONNECTION'
+  value: 'Rake-Pipeline-01'
+- name: 'STORAGE_ACCOUNT'
+  value: 'devstorage13'
+- name: 'BACKEND_KEY'
+  value: '${{ parameters.envi }}.terraform.tfstate'
+
 
 stages: 
 - stage: PreCommit
@@ -34,7 +40,7 @@ stages:
         backendServiceArm: '$(SERVICE_CONNECTION)'
         backendAzureRmStorageAccountName: '$(STORAGE_ACCOUNT)'
         backendAzureRmContainerName: 'tfstate'
-        backendAzureRmKey: 'dev.terraform.tfstate'
+        backendAzureRmKey: '${{ parameters.envi }}.terraform.tfstate'
     
     - task: TerraformTask@5
       displayName: terraform fmt
@@ -62,24 +68,25 @@ stages:
     - task: tfsec@1
       inputs:
         version: 'v1.26.0'
-        dir: '$(WORK_DIR)'
+        dir: '$(System.DefaultWorkingDirectory)'
 
   - job: tflint
     displayName: tflinting check
+    continueOnError: true
     dependsOn: tfsec
     pool: raka
     steps:
     - task: PowerShell@2
       inputs:
         targetType: 'inline'
-        script:
-          winget upgrade TerraformLinters.tflint `
-            --accept-package-agreements `
-            --accept-source-agreements `
-            --silent
-          tflint
-        workingDirectory: '$(WORK_DIR)'
+        script: 'tflint --chdir=$(System.DefaultWorkingDirectory) --recursive'
 
+    # - task: PublishPipelineArtifact@1
+    #   inputs:
+    #     targetPath: '$(System.DefaultWorkingDirectory)/tflint.json'
+    #     artifact: 'Tflint result'
+    #     publishLocation: 'pipeline'
+        
 - stage: CostStage
   displayName: Cost-Satage
   dependsOn: PreCommit
@@ -89,6 +96,11 @@ stages:
     displayName: Infra-Cost
     pool: raka
     steps:
+    - task: InfracostSetup@2
+      inputs:
+        apiKey: '$(InfracostAPI)'
+        version: '0.10.x'
+
     - task: PowerShell@2
       inputs:
         targetType: 'inline'
@@ -112,7 +124,7 @@ stages:
         backendServiceArm: '$(SERVICE_CONNECTION)'
         backendAzureRmStorageAccountName: '$(STORAGE_ACCOUNT)'
         backendAzureRmContainerName: 'tfstate'
-        backendAzureRmKey: 'dev.terraform.tfstate'  
+        backendAzureRmKey: '${{ parameters.envi }}.terraform.tfstate'  
     - task: TerraformTask@5
       displayName: terraform paln
       inputs:
@@ -132,7 +144,9 @@ stages:
     steps:
     - task: ManualValidation@1
       inputs:
-        notifyUsers: 'asdfrt@gmail.com'  
+        notifyUsers: 'vipin@shashi25011outlook.onmicrosoft.com'
+        approvers: 'vipin@shashi25011outlook.onmicrosoft.com'
+        instructions: 'Look at the code'
 
 - stage: Apply
   displayName: Diploy/Apply-stage
@@ -151,7 +165,7 @@ stages:
         backendServiceArm: '$(SERVICE_CONNECTION)'
         backendAzureRmStorageAccountName: '$(STORAGE_ACCOUNT)'
         backendAzureRmContainerName: 'tfstate'
-        backendAzureRmKey: 'dev.terraform.tfstate'
+        backendAzureRmKey: '${{ parameters.envi }}.terraform.tfstate'
     - task: TerraformTask@5
       inputs:
         provider: 'azurerm'
